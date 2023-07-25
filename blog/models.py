@@ -6,14 +6,23 @@ from django.contrib.auth.models import User
 
 class PostQuerySet(models.QuerySet):
     def year(self, year):
-        posts_at_year = self.filter(published_at__year=year).order_by('published_at')
-        return posts_at_year
+        return self.filter(published_at__year=year).order_by('published_at')
+
+    def popular(self):
+        return self.annotate(Count('likes', distinct=True)).order_by('-likes__count')
+
+    def fetch_with_comments_count(self):
+        most_popular_posts_ids = [post.id for post in self]
+        posts_comments = Post.objects.filter(id__in=most_popular_posts_ids).annotate(Count('comments'))
+        post_ids_and_comments = dict(posts_comments.values_list('id', 'comments__count'))
+        for post in self:
+            post.comments__count = post_ids_and_comments[post.id]
+        return self
 
 
 class TagQuerySet(models.QuerySet):
     def popular(self):
-        most_popular_tags = Tag.objects.annotate(Count('posts')).order_by('-posts__count')
-        return most_popular_tags
+        return self.annotate(Count('posts')).order_by('-posts__count')
 
 
 class Post(models.Model):
